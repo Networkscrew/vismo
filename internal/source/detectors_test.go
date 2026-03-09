@@ -183,7 +183,7 @@ func TestAnalyze(t *testing.T) {
 	obj := makeObj(
 		map[string]string{
 			"app.kubernetes.io/managed-by": "Helm",
-			"argocd.argoproj.io/app-name": "my-app",
+			"argocd.argoproj.io/app-name":  "my-app",
 		},
 		map[string]string{
 			"meta.helm.sh/release-name": "my-app",

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"log/slog"
@@ -45,7 +46,7 @@ func main() {
 	root.AddCommand(newGetCmd(cfg))
 	root.AddCommand(newVersionCmd())
 
-	ctx, stop := signal.NotifyContext(root.Context(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	if err := root.ExecuteContext(ctx); err != nil {
@@ -77,19 +78,28 @@ func newGetCmd(cfg *config.Config) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			slog.Debug("get command invoked", "args", args, "namespace", cfg.Namespace, "all_namespaces", cfg.AllNamespaces, "field", fieldPath)
+
+			slog.Info("connecting to Kubernetes cluster", "kubeconfig", cfg.Kubeconfig)
 			client, err := k8s.NewClient(cfg.Kubeconfig)
 			if err != nil {
 				return fmt.Errorf("connect to cluster: %w", err)
 			}
+			slog.Info("connected to cluster successfully")
 
 			resourceType, name := k8s.ParseResourceArg(args[0])
+			slog.Debug("parsed resource argument", "resource_type", resourceType, "name", name)
+
+			slog.Debug("resolving GVR for resource type", "resource_type", resourceType)
 			gvr, err := k8s.ResolveGVR(ctx, client.Mapper(), resourceType)
 			if err != nil {
 				return err
 			}
+			slog.Info("GVR resolved", "group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource)
 
 			ns := cfg.Namespace
 			if cfg.AllNamespaces {
+				slog.Debug("--all-namespaces flag set, clearing namespace filter")
 				ns = ""
 			}
 
@@ -97,35 +107,55 @@ func newGetCmd(cfg *config.Config) *cobra.Command {
 
 			// Single resource
 			if name != "" {
+				slog.Info("fetching single resource", "gvr", gvr.String(), "name", name, "namespace", ns)
 				obj, err := client.GetResource(ctx, gvr, name, ns)
 				if err != nil {
 					return err
 				}
+				slog.Info("resource fetched",
+					"kind", obj.GetKind(),
+					"name", obj.GetName(),
+					"namespace", obj.GetNamespace(),
+					"resource_version", obj.GetResourceVersion(),
+					"managed_fields_count", len(obj.GetManagedFields()),
+				)
 
+				slog.Debug("marshalling resource to YAML")
 				raw, err := yaml.Marshal(obj.Object)
 				if err != nil {
 					return fmt.Errorf("marshal YAML: %w", err)
 				}
+				slog.Debug("YAML marshalled", "bytes", len(raw))
 				formatter.RenderResource(raw)
 
+				slog.Info("running source detection analysis")
 				result := source.Analyze(obj)
+				slog.Info("source detection complete", "sources_found", len(result.Sources))
 				formatter.RenderSources(result)
 
 				if fieldPath != "" {
+					slog.Info("running managedFields ownership trace", "field", fieldPath)
 					trace, err := managedfields.ParseOwners(obj, fieldPath)
 					if err != nil {
 						return fmt.Errorf("analyze managedFields: %w", err)
 					}
+					slog.Info("ownership trace complete",
+						"field", fieldPath,
+						"owners_found", len(trace.Owners),
+						"has_note", trace.Note != "",
+					)
 					formatter.RenderFieldTrace(trace)
 				}
 				return nil
 			}
 
 			// List resources
+			slog.Info("listing resources", "gvr", gvr.String(), "namespace", ns)
 			list, err := client.ListResources(ctx, gvr, ns)
 			if err != nil {
 				return err
 			}
+			slog.Info("list complete", "count", len(list.Items))
 			for _, item := range list.Items {
 				itemNs := item.GetNamespace()
 				if itemNs != "" {
@@ -157,5 +187,14 @@ func initLogging(level string) error {
 		return fmt.Errorf("unknown log level %q", level)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: l})))
+
+	switch l {
+	case slog.LevelDebug:
+		fmt.Fprintln(os.Stderr, "# log level: DEBUG - verbose output enabled (all internal steps will be logged)")
+	case slog.LevelInfo:
+		fmt.Fprintln(os.Stderr, "# log level: INFO - informational output enabled")
+	}
+
+	slog.Debug("logging initialized", "level", level)
 	return nil
 }
