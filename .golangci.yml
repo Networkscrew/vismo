@@ -1,0 +1,18 @@
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+issues:
+  exclude-rules:
+    # Allow unhandled Write errors in formatter (io.Writer contract)
+    - path: internal/output/formatter.go
+      linters:
+        - errcheck
