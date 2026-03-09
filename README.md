@@ -124,4 +124,4 @@ vismo get deploy/api -n production --log-level=debug
 
 ## Supported resource aliases
 
-Vismo works with all the short names. These include deploy, sts, svc, po, cm secret, ing ds rs, cj, job, pvc, pv, ns, sa and no. Also accepting plurals.
+Vismo works with all the short names. These include deploy, sts, svc, po, cm, secret, ing, ds, rs, cj, job, pvc, pv, ns, sa and no. Also accepting plurals.
