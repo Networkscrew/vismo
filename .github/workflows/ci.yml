@@ -36,22 +36,27 @@ jobs:
       - name: Build binary
         run: go build -buildvcs=false -ldflags "-X main.Version=ci-${GITHUB_SHA::8}" -o bin/vismo ./cmd/vismo
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
+  # TODO: Lint job is temporarily disabled.
+  # golangci-lint does not yet support Go 1.25 (binary builds are made with Go 1.24).
+  # Re-enable once golangci-lint releases a version built with Go 1.25+.
+  # See: https://github.com/golangci/golangci-lint/issues
+  #
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: go.mod
+  #         cache: true
+  #
+  #     - name: Run golangci-lint
+  #       uses: golangci/golangci-lint-action@v6
+  #       with:
+  #         version: latest
+  #         args: --timeout=5m
